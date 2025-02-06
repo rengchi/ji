@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 // WriteJSONToFile 将结构体写入 JSON 文件
@@ -35,7 +36,7 @@ func WriteJSONToFile(dst string, data interface{}, indent string) error {
 	}
 
 	// 创建目标目录（如果不存在）
-	dir := dst[:len(dst)-len("filename")] // 获取目录路径
+	dir := filepath.Dir(dst) // 使用 filepath.Dir 获取文件的目录路径
 	if err = os.MkdirAll(dir, os.ModePerm); err != nil {
 		// 创建目录失败
 		fmt.Printf("创建目录失败：%s\n", err.Error())
