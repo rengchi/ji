@@ -14,7 +14,7 @@ type Resp struct {
 	Status          bool        `json:"status"`              // 请求处理状态，true表示成功，false表示失败
 	Message         string      `json:"message,omitempty"`   // 返回的提示信息，若无可省略
 	Data            interface{} `json:"data,omitempty"`      // 返回的实际数据，若为空则不返回该字段
-	ExecTime        string      `json:"exec_time,omitempty"` // 请求处理时间，单位：毫秒
+	ExecTime        int64       `json:"exec_time,omitempty"` // 请求处理时间，单位：毫秒
 	IncludeExecTime bool        `json:"-"`                   // 控制是否添加执行时间字段
 }
 
@@ -30,7 +30,7 @@ func WriteResponse(w http.ResponseWriter, statusCode int, resp Resp) {
 	// 判断是否需要包含执行时间
 	if resp.IncludeExecTime {
 		// 获取请求处理时间，并添加到响应体
-		resp.ExecTime = time.Since(start).String()
+		resp.ExecTime = time.Since(start).Milliseconds()
 	}
 
 	// 判断客户端是否支持 Gzip 压缩
