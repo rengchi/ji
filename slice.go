@@ -124,10 +124,33 @@ func SplitStringToIntSlice(record string) ([]int, error) {
 	intSlice := make([]int, len(strSlice))
 	for i, s := range strSlice {
 		num, err := strconv.Atoi(s)
+		// 如果遇到空字符串，返回错误
+		if s == "" {
+			return nil, fmt.Errorf("输入的字符串在索引 %d 处为空", i)
+		}
 		if err != nil {
 			return nil, err
 		}
 		intSlice[i] = num
+	}
+	return intSlice, nil
+}
+
+// SplitStringToIntSliceIgnoringEmpty 将逗号分隔的字符串拆分成整数切片，跳过空字符串
+// 将传入的逗号分隔字符串拆分为整数切片，跳过空字符串并返回切片和可能的错误
+func SplitStringToIntSliceIgnoringEmpty(record string) ([]int, error) {
+	strSlice := strings.Split(record, ",")
+	intSlice := make([]int, 0, len(strSlice))
+	for _, s := range strSlice {
+		// 跳过空字符串
+		if s == "" {
+			continue
+		}
+		num, err := strconv.Atoi(s)
+		if err != nil {
+			return nil, err
+		}
+		intSlice = append(intSlice, num)
 	}
 	return intSlice, nil
 }
@@ -138,11 +161,34 @@ func SplitStringToUintSlice(record string) ([]uint, error) {
 	strSlice := strings.Split(record, ",")
 	uintSlice := make([]uint, len(strSlice))
 	for i, s := range strSlice {
+		// 如果遇到空字符串，返回错误
+		if s == "" {
+			return nil, fmt.Errorf("输入的字符串在索引 %d 处为空", i)
+		}
 		num, err := strconv.ParseUint(s, 10, 32)
 		if err != nil {
 			return nil, err
 		}
 		uintSlice[i] = uint(num)
+	}
+	return uintSlice, nil
+}
+
+// SplitStringToUintSliceIgnoringEmpty 将逗号分隔的字符串拆分成 uint 类型的整数切片，跳过空字符串
+// 将传入的逗号分隔字符串拆分为无符号整数切片，跳过空字符串并返回切片和可能的错误
+func SplitStringToUintSliceIgnoringEmpty(record string) ([]uint, error) {
+	strSlice := strings.Split(record, ",")
+	uintSlice := make([]uint, 0, len(strSlice))
+	for _, s := range strSlice {
+		// 跳过空字符串
+		if s == "" {
+			continue
+		}
+		num, err := strconv.ParseUint(s, 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		uintSlice = append(uintSlice, uint(num))
 	}
 	return uintSlice, nil
 }

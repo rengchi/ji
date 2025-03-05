@@ -3,6 +3,7 @@
 package ji
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -18,38 +19,40 @@ import (
 // 返回值:
 //   - error: 如果写入过程中发生错误，则返回错误信息
 func WriteJSONToFile(dst string, data interface{}, indent string) error {
-	var str []byte
-	var err error
+	// 获取文件所在目录路径
+	dir := filepath.Dir(dst)
 
-	// 使用标准库的 JSON 序列化
+	// 创建目录（如果不存在）
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return fmt.Errorf("创建目录 %s 失败：%w", dir, err)
+	}
+
+	// 打开目标文件（如果文件已存在则清空）
+	file, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
+	if err != nil {
+		return fmt.Errorf("无法打开文件 %s：%w", dst, err)
+	}
+	defer file.Close()
+
+	// 使用 bufio.Writer 进行缓冲写入，提高写入性能
+	writer := bufio.NewWriter(file)
+
+	// 使用 JSON 编码器写入文件
+	encoder := json.NewEncoder(writer)
 	if indent != "" {
-		// 使用 MarshalIndent 进行格式化 JSON 序列化
-		str, err = json.MarshalIndent(data, "", indent)
-	} else {
-		// 使用 Marshal 进行紧凑的 JSON 序列化
-		str, err = json.Marshal(data)
-	}
-	if err != nil {
-		// 错误的 JSON 序列化
-		fmt.Printf("json 错误，%s\n", err.Error())
-		return err
+		encoder.SetIndent("", indent)
 	}
 
-	// 创建目标目录（如果不存在）
-	dir := filepath.Dir(dst) // 使用 filepath.Dir 获取文件的目录路径
-	if err = os.MkdirAll(dir, os.ModePerm); err != nil {
-		// 创建目录失败
-		fmt.Printf("创建目录失败：%s\n", err.Error())
-		return err
+	// 编码数据并写入缓冲区
+	if err := encoder.Encode(data); err != nil {
+		return fmt.Errorf("写入 JSON 数据失败：%w", err)
 	}
 
-	// 将格式化后的 JSON 数据写入文件
-	err = os.WriteFile(dst, str, os.ModePerm)
-	if err != nil {
-		// 写入文件错误
-		fmt.Printf("json 写入文件错误：%s； 目录：%s\n", err.Error(), dst)
-		return err
+	// 确保缓冲区的内容被写入文件
+	if err := writer.Flush(); err != nil {
+		return fmt.Errorf("刷新缓冲区到文件失败：%w", err)
 	}
+
 	return nil
 }
 
