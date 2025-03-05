@@ -1,6 +1,10 @@
 package ji
 
-import "sync"
+import (
+	"container/list"
+	"context"
+	"sync"
+)
 
 // TreeNode 表示一个树节点
 // 泛型 T 用于支持任意类型的数据
@@ -12,104 +16,165 @@ type TreeNode[T any] struct {
 	Children []*TreeNode[T] // 子节点列表
 }
 
-// BuildTree 构建树形数据结构
-func BuildTree[T any](data []TreeNode[T], pid int) []*TreeNode[T] {
-	// 使用 map 预先构建每个节点的子节点列表，避免重复查找
-	childrenMap := make(map[int][]*TreeNode[T])
+// Tree 结构，封装高效的树操作
+type Tree[T any] struct {
+	nodes map[int]*TreeNode[T] // 快速查找节点
+	mu    sync.RWMutex         // 读写锁，确保并发安全
+}
 
+// NewTree 创建一个新的树结构
+func NewTree[T any](data []TreeNode[T]) *Tree[T] {
+	tree := &Tree[T]{nodes: make(map[int]*TreeNode[T])}
+
+	// 预先构建节点映射
 	for i := range data {
-		childrenMap[data[i].PID] = append(childrenMap[data[i].PID], &data[i])
+		tree.nodes[data[i].ID] = &data[i]
 	}
 
-	// 使用递归构建树
-	var build func(pid int) []*TreeNode[T]
-	build = func(pid int) []*TreeNode[T] {
-		var result []*TreeNode[T]
-		for _, node := range childrenMap[pid] {
-			node.Children = build(node.ID)
-			result = append(result, node)
+	// 构建树结构
+	for _, node := range tree.nodes {
+		if parent, found := tree.nodes[node.PID]; found {
+			parent.Children = append(parent.Children, node)
 		}
-		return result
 	}
-
-	return build(pid)
+	return tree
 }
 
-// GetSubCategoryIDs 获取指定节点的所有子节点 ID
-func GetSubCategoryIDs[T any](node *TreeNode[T], ids *[]int) {
-	if node == nil {
-		return
+// GetRootNodes 获取所有的根节点（PID = 0）
+func (tree *Tree[T]) GetRootNodes() []*TreeNode[T] {
+	tree.mu.RLock()
+	defer tree.mu.RUnlock()
+
+	var rootNodes []*TreeNode[T]
+	for _, node := range tree.nodes {
+		if node.PID == 0 {
+			rootNodes = append(rootNodes, node)
+		}
 	}
-	*ids = append(*ids, node.ID)
-	for _, child := range node.Children {
-		GetSubCategoryIDs(child, ids)
-	}
+	return rootNodes
 }
 
-// TreeLevel 获取指定节点的层级
-func TreeLevel[T any](id int, nodes []TreeNode[T]) int {
-	// 预先构建节点的父子关系索引
-	parentMap := make(map[int]int)
-	for _, node := range nodes {
-		parentMap[node.ID] = node.PID
+// GetSubCategoryIDs 获取指定节点的所有子节点 ID（广度优先遍历）
+func (tree *Tree[T]) GetSubCategoryIDs(nodeID int, includeSelf bool) []int {
+	tree.mu.RLock()
+	defer tree.mu.RUnlock()
+
+	startNode, found := tree.nodes[nodeID]
+	if !found {
+		return nil
 	}
 
-	// 遍历父节点，查找层级
+	subCategoryIDs := make([]int, 0)
+	if includeSelf {
+		subCategoryIDs = append(subCategoryIDs, startNode.ID)
+	}
+
+	queue := list.New()
+	queue.PushBack(startNode)
+
+	// 广度优先遍历
+	for queue.Len() > 0 {
+		element := queue.Front() // 获取队头元素
+		currentNode := element.Value.(*TreeNode[T])
+		queue.Remove(element) // 出队
+
+		// 遍历子节点
+		for _, child := range currentNode.Children {
+			subCategoryIDs = append(subCategoryIDs, child.ID)
+			queue.PushBack(child) // 子节点入队
+		}
+	}
+
+	return subCategoryIDs
+}
+
+// TreeLevel 获取某个节点的层级（O(1) 查找）
+func (tree *Tree[T]) TreeLevel(nodeID int) int {
+	tree.mu.RLock()
+	defer tree.mu.RUnlock()
+
 	level := 0
-	currentID := id
-	for currentID != 0 {
-		currentID = parentMap[currentID]
+	currentNode, found := tree.nodes[nodeID]
+	if !found {
+		return -1 // 如果节点未找到，返回 -1
+	}
+	// 从当前节点开始，沿着父节点向上遍历，直到根节点
+	for currentNode.PID != 0 {
 		level++
+		currentNode = tree.nodes[currentNode.PID]
 	}
 	return level
 }
 
-// IsParent 判断 id 节点是否为 parentID 节点的子节点
-func IsParent[T any](id int, parentID int, nodes []TreeNode[T]) bool {
-	// 预先构建树
-	subTree := BuildTree(nodes, parentID)
-	return IsInSubTreeConcurrent(id, subTree)
+// IsParent 判断 parentID 是否是 nodeID 的直接父节点（O(1) 查询）
+func (tree *Tree[T]) IsParent(nodeID, parentID int) bool {
+	tree.mu.RLock()
+	defer tree.mu.RUnlock()
+
+	node, found := tree.nodes[nodeID]
+	if !found {
+		return false
+	}
+	return node.PID == parentID
 }
 
-// IsInSubTreeConcurrent 使用并发判断某个 ID 是否在子树中
-func IsInSubTreeConcurrent[T any](id int, subTree []*TreeNode[T]) bool {
-	var wg sync.WaitGroup
-	var found bool
-	var mu sync.Mutex
-
-	// 使用队列（非递归方式）避免递归过深
-	queue := subTree
-	for len(queue) > 0 {
-		node := queue[0]
-		queue = queue[1:]
-
-		wg.Add(1)
-		go func(node *TreeNode[T]) {
-			defer wg.Done()
-
-			mu.Lock()
-			if found {
-				mu.Unlock()
-				return
-			}
-			mu.Unlock()
-
-			if node.ID == id {
-				mu.Lock()
-				found = true
-				mu.Unlock()
-				return
-			}
-
-			// 处理子节点
-			if len(node.Children) > 0 {
-				mu.Lock()
-				queue = append(queue, node.Children...)
-				mu.Unlock()
-			}
-		}(node)
+// IsInSubTreeConcurrent 并发查找目标 ID 是否在子树中
+func (tree *Tree[T]) IsInSubTreeConcurrent(rootID, targetID int) bool {
+	tree.mu.RLock()
+	rootNode, found := tree.nodes[rootID]
+	tree.mu.RUnlock()
+	if !found {
+		return false
 	}
 
-	wg.Wait()
-	return found
+	// 创建取消上下文
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// 结果通道
+	resultChan := make(chan bool, 1)
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	// 并发查找子树
+	go func() {
+		defer wg.Done()
+		tree.searchSubtree(ctx, rootNode, targetID, resultChan)
+	}()
+
+	// 等待查找完成
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	return <-resultChan
+}
+
+// searchSubtree 递归并发搜索子树
+func (tree *Tree[T]) searchSubtree(ctx context.Context, node *TreeNode[T], targetID int, resultChan chan<- bool) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		// 如果找到了目标节点
+		if node.ID == targetID {
+			select {
+			case resultChan <- true:
+			default:
+			}
+			return
+		}
+
+		var wg sync.WaitGroup
+		// 并发搜索子节点
+		for _, child := range node.Children {
+			wg.Add(1)
+			go func(childNode *TreeNode[T]) {
+				defer wg.Done()
+				tree.searchSubtree(ctx, childNode, targetID, resultChan)
+			}(child)
+		}
+		wg.Wait()
+	}
 }
