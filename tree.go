@@ -3,7 +3,6 @@ package ji
 import (
 	"container/list"
 	"context"
-	"sort"
 	"sync"
 )
 
@@ -25,11 +24,6 @@ type Tree struct {
 
 // NewTree 创建一个新的树结构
 func NewTree(data []TreeNode) (*Tree, error) {
-	// 按照 Sorted 字段进行排序，升序
-	sort.Slice(data, func(i, j int) bool {
-		return data[i].Sorted < data[j].Sorted
-	})
-
 	tree := &Tree{nodes: make(map[uint]*TreeNode)}
 
 	// 预先构建节点映射

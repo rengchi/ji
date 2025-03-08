@@ -30,11 +30,11 @@ func printTreeAsJSON(tree *Tree) {
 func TestTreeOperations(t *testing.T) {
 	// 树的示例数据
 	data := []TreeNode{
-		{ID: 1, ParentID: 0, Name: "Root"},
-		{ID: 2, ParentID: 1, Name: "Child1"},
-		{ID: 3, ParentID: 1, Name: "Child2"},
-		{ID: 4, ParentID: 2, Name: "Child1.1"},
-		{ID: 5, ParentID: 3, Name: "Child2.1"},
+		{ID: 1, ParentID: 0, Name: "Root", Sorted: 0},
+		{ID: 2, ParentID: 1, Name: "Child1", Sorted: 1},
+		{ID: 3, ParentID: 1, Name: "Child2", Sorted: 2},
+		{ID: 4, ParentID: 2, Name: "Child1.1", Sorted: 3},
+		{ID: 5, ParentID: 3, Name: "Child2.1", Sorted: 4},
 	}
 
 	// 创建树
