@@ -8,11 +8,11 @@ import (
 
 // TreeNode 表示一个树节点
 type TreeNode struct {
-	ID       uint        // 当前节点 ID
-	ParentID uint        // 父节点 ID
-	Name     string      // 节点名称
-	Selected bool        // 选中状态
-	Children []*TreeNode // 子节点列表
+	ID       uint        `json:"id"`        // 当前节点 ID
+	ParentID uint        `json:"parent_id"` // 父节点 ID
+	Name     string      `json:"name"`      // 节点名称
+	Selected bool        `json:"selected"`  // 选中状态
+	Children []*TreeNode `json:"children"`  // 子节点列表
 }
 
 // Tree 结构，封装高效的树操作
