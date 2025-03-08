@@ -1,21 +1,45 @@
 package ji
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 )
 
+// 打印树结构并以 JSON 格式输出
+func printTreeAsJSON(tree *Tree) {
+	// 获取根节点
+	var rootNodes []*TreeNode
+	for _, node := range tree.nodes {
+		if node.ParentID == 0 {
+			rootNodes = append(rootNodes, node)
+		}
+	}
+
+	// 将根节点转化为 JSON 格式并输出
+	data, err := json.MarshalIndent(rootNodes, "", "  ")
+	if err != nil {
+		fmt.Println("解析json数据错误:", err)
+		return
+	}
+
+	// 打印树的 JSON
+	fmt.Println(string(data))
+}
+
 func TestTreeOperations(t *testing.T) {
 	// 树的示例数据
-	data := []TreeNode[int]{
-		{ID: 1, PID: 0, Name: "Root", Data: 1},
-		{ID: 2, PID: 1, Name: "Child1", Data: 2},
-		{ID: 3, PID: 1, Name: "Child2", Data: 3},
-		{ID: 4, PID: 2, Name: "Child1.1", Data: 4},
-		{ID: 5, PID: 3, Name: "Child2.1", Data: 5},
+	data := []TreeNode{
+		{ID: 1, ParentID: 0, Name: "Root"},
+		{ID: 2, ParentID: 1, Name: "Child1"},
+		{ID: 3, ParentID: 1, Name: "Child2"},
+		{ID: 4, ParentID: 2, Name: "Child1.1"},
+		{ID: 5, ParentID: 3, Name: "Child2.1"},
 	}
 
 	// 创建树
-	tree := NewTree(data)
+	tree, _ := NewTree(data)
+	printTreeAsJSON(tree)
 
 	// 测试获取根节点
 	rootNodes := tree.GetRootNodes()
@@ -49,14 +73,14 @@ func TestTreeOperations(t *testing.T) {
 // 性能基准测试 IsInSubTreeConcurrent
 func BenchmarkIsInSubTreeConcurrent(b *testing.B) {
 	// 创建测试数据
-	data := []TreeNode[int]{
-		{ID: 1, PID: 0, Name: "Root", Data: 1},
-		{ID: 2, PID: 1, Name: "Child1", Data: 2},
-		{ID: 3, PID: 1, Name: "Child2", Data: 3},
-		{ID: 4, PID: 2, Name: "Child1.1", Data: 4},
-		{ID: 5, PID: 3, Name: "Child2.1", Data: 5},
+	data := []TreeNode{
+		{ID: 1, ParentID: 0, Name: "Root"},
+		{ID: 2, ParentID: 1, Name: "Child1"},
+		{ID: 3, ParentID: 1, Name: "Child2"},
+		{ID: 4, ParentID: 2, Name: "Child1.1"},
+		{ID: 5, ParentID: 3, Name: "Child2.1"},
 	}
-	tree := NewTree(data)
+	tree, _ := NewTree(data)
 
 	// 重置计时器
 	b.ResetTimer()

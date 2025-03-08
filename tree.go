@@ -7,24 +7,23 @@ import (
 )
 
 // TreeNode 表示一个树节点
-// 泛型 T 用于支持任意类型的数据
-type TreeNode[T any] struct {
-	ID       int            // 当前节点 ID
-	PID      int            // 父节点 ID
-	Name     string         // 节点名称
-	Data     T              // 存储节点数据
-	Children []*TreeNode[T] // 子节点列表
+type TreeNode struct {
+	ID       uint        // 当前节点 ID
+	ParentID uint        // 父节点 ID
+	Name     string      // 节点名称
+	Selected bool        // 选中状态
+	Children []*TreeNode // 子节点列表
 }
 
 // Tree 结构，封装高效的树操作
-type Tree[T any] struct {
-	nodes map[int]*TreeNode[T] // 快速查找节点
-	mu    sync.RWMutex         // 读写锁，确保并发安全
+type Tree struct {
+	nodes map[uint]*TreeNode // 快速查找节点
+	mu    sync.RWMutex       // 读写锁，确保并发安全
 }
 
 // NewTree 创建一个新的树结构
-func NewTree[T any](data []TreeNode[T]) *Tree[T] {
-	tree := &Tree[T]{nodes: make(map[int]*TreeNode[T])}
+func NewTree(data []TreeNode) (*Tree, error) {
+	tree := &Tree{nodes: make(map[uint]*TreeNode)}
 
 	// 预先构建节点映射
 	for i := range data {
@@ -33,21 +32,21 @@ func NewTree[T any](data []TreeNode[T]) *Tree[T] {
 
 	// 构建树结构
 	for _, node := range tree.nodes {
-		if parent, found := tree.nodes[node.PID]; found {
+		if parent, found := tree.nodes[node.ParentID]; found {
 			parent.Children = append(parent.Children, node)
 		}
 	}
-	return tree
+	return tree, nil
 }
 
-// GetRootNodes 获取所有的根节点（PID = 0）
-func (tree *Tree[T]) GetRootNodes() []*TreeNode[T] {
+// GetRootNodes 获取所有的根节点（ParentID = 0）
+func (tree *Tree) GetRootNodes() []*TreeNode {
 	tree.mu.RLock()
 	defer tree.mu.RUnlock()
 
-	var rootNodes []*TreeNode[T]
+	var rootNodes []*TreeNode
 	for _, node := range tree.nodes {
-		if node.PID == 0 {
+		if node.ParentID == 0 {
 			rootNodes = append(rootNodes, node)
 		}
 	}
@@ -55,7 +54,7 @@ func (tree *Tree[T]) GetRootNodes() []*TreeNode[T] {
 }
 
 // GetSubCategoryIDs 获取指定节点的所有子节点 ID（广度优先遍历）
-func (tree *Tree[T]) GetSubCategoryIDs(nodeID int, includeSelf bool) []int {
+func (tree *Tree) GetSubCategoryIDs(nodeID uint, includeSelf bool) []uint {
 	tree.mu.RLock()
 	defer tree.mu.RUnlock()
 
@@ -64,7 +63,7 @@ func (tree *Tree[T]) GetSubCategoryIDs(nodeID int, includeSelf bool) []int {
 		return nil
 	}
 
-	subCategoryIDs := make([]int, 0)
+	subCategoryIDs := make([]uint, 0)
 	if includeSelf {
 		subCategoryIDs = append(subCategoryIDs, startNode.ID)
 	}
@@ -75,7 +74,7 @@ func (tree *Tree[T]) GetSubCategoryIDs(nodeID int, includeSelf bool) []int {
 	// 广度优先遍历
 	for queue.Len() > 0 {
 		element := queue.Front() // 获取队头元素
-		currentNode := element.Value.(*TreeNode[T])
+		currentNode := element.Value.(*TreeNode)
 		queue.Remove(element) // 出队
 
 		// 遍历子节点
@@ -89,7 +88,7 @@ func (tree *Tree[T]) GetSubCategoryIDs(nodeID int, includeSelf bool) []int {
 }
 
 // TreeLevel 获取某个节点的层级（O(1) 查找）
-func (tree *Tree[T]) TreeLevel(nodeID int) int {
+func (tree *Tree) TreeLevel(nodeID uint) int {
 	tree.mu.RLock()
 	defer tree.mu.RUnlock()
 
@@ -99,15 +98,15 @@ func (tree *Tree[T]) TreeLevel(nodeID int) int {
 		return -1 // 如果节点未找到，返回 -1
 	}
 	// 从当前节点开始，沿着父节点向上遍历，直到根节点
-	for currentNode.PID != 0 {
+	for currentNode.ParentID != 0 {
 		level++
-		currentNode = tree.nodes[currentNode.PID]
+		currentNode = tree.nodes[currentNode.ParentID]
 	}
 	return level
 }
 
 // IsParent 判断 parentID 是否是 nodeID 的直接父节点（O(1) 查询）
-func (tree *Tree[T]) IsParent(nodeID, parentID int) bool {
+func (tree *Tree) IsParent(nodeID, parentID uint) bool {
 	tree.mu.RLock()
 	defer tree.mu.RUnlock()
 
@@ -115,11 +114,11 @@ func (tree *Tree[T]) IsParent(nodeID, parentID int) bool {
 	if !found {
 		return false
 	}
-	return node.PID == parentID
+	return node.ParentID == parentID
 }
 
 // IsInSubTreeConcurrent 并发查找目标 ID 是否在子树中
-func (tree *Tree[T]) IsInSubTreeConcurrent(rootID, targetID int) bool {
+func (tree *Tree) IsInSubTreeConcurrent(rootID, targetID uint) bool {
 	tree.mu.RLock()
 	rootNode, found := tree.nodes[rootID]
 	tree.mu.RUnlock()
@@ -152,7 +151,7 @@ func (tree *Tree[T]) IsInSubTreeConcurrent(rootID, targetID int) bool {
 }
 
 // searchSubtree 递归并发搜索子树
-func (tree *Tree[T]) searchSubtree(ctx context.Context, node *TreeNode[T], targetID int, resultChan chan<- bool) {
+func (tree *Tree) searchSubtree(ctx context.Context, node *TreeNode, targetID uint, resultChan chan<- bool) {
 	select {
 	case <-ctx.Done():
 		return
@@ -170,7 +169,7 @@ func (tree *Tree[T]) searchSubtree(ctx context.Context, node *TreeNode[T], targe
 		// 并发搜索子节点
 		for _, child := range node.Children {
 			wg.Add(1)
-			go func(childNode *TreeNode[T]) {
+			go func(childNode *TreeNode) {
 				defer wg.Done()
 				tree.searchSubtree(ctx, childNode, targetID, resultChan)
 			}(child)

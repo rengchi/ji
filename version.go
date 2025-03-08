@@ -5,4 +5,4 @@
 package ji
 
 // Version  当前 JI霁 的版本信息
-const Version = "v0.0.4"
+const Version = "v0.0.5"
