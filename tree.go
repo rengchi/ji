@@ -3,6 +3,7 @@ package ji
 import (
 	"container/list"
 	"context"
+	"sort"
 	"sync"
 )
 
@@ -12,6 +13,7 @@ type TreeNode struct {
 	ParentID uint        `json:"parent_id"` // 父节点 ID
 	Name     string      `json:"name"`      // 节点名称
 	Selected bool        `json:"selected"`  // 选中状态
+	Sorted   int         `json:"sorted"`    // 排序
 	Children []*TreeNode `json:"children"`  // 子节点列表
 }
 
@@ -23,6 +25,11 @@ type Tree struct {
 
 // NewTree 创建一个新的树结构
 func NewTree(data []TreeNode) (*Tree, error) {
+	// 按照 Sorted 字段进行排序，升序
+	sort.Slice(data, func(i, j int) bool {
+		return data[i].Sorted < data[j].Sorted
+	})
+
 	tree := &Tree{nodes: make(map[uint]*TreeNode)}
 
 	// 预先构建节点映射
