@@ -18,7 +18,7 @@ import (
 //
 // 返回值:
 //   - error: 如果写入过程中发生错误，则返回错误信息
-func WriteJSONToFile(dst string, data interface{}, indent string) error {
+func WriteJSONToFile(dst string, data any, indent string) error {
 	// 获取文件所在目录路径
 	dir := filepath.Dir(dst)
 
@@ -63,7 +63,7 @@ func WriteJSONToFile(dst string, data interface{}, indent string) error {
 //
 // 返回值:
 //   - error: 如果读取过程中发生错误，则返回错误信息
-func ReadJSONFromFile(src string, v interface{}) error {
+func ReadJSONFromFile(src string, v any) error {
 	file, err := os.Open(src)
 	if err != nil {
 		// 打开文件失败

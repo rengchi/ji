@@ -4,6 +4,7 @@ package ji
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -26,12 +27,7 @@ func SliceEqual[T comparable](a, b []T) bool {
 // SliceContains 检查切片是否包含指定元素
 // 如果切片中包含元素 v，返回 true；否则返回 false
 func SliceContains[T comparable](arr []T, v T) bool {
-	for _, vv := range arr {
-		if vv == v {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(arr, v)
 }
 
 // SliceAllContains 检查切片是否完全包含指定元素集合

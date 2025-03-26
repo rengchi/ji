@@ -1,11 +1,17 @@
 package ji
 
 import (
+	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // 文件大小单位
@@ -126,24 +132,82 @@ func FileMimeType(filePath string) (string, error) {
 	return http.DetectContentType(buffer[:n]), nil
 }
 
-// RemoveFile 删除指定路径的文件
-// 参数: filePath - 文件的完整路径
+// RemoveFiles 删除多个路径的文件
+// 参数: filePaths - 一个或多个文件路径
 // 返回值: 成功返回 nil，错误时返回 error
-func RemoveFile(filePath string) error {
-	err := os.Remove(filePath)
-	if err != nil {
-		return fmt.Errorf("删除文件失败: %w", err)
+func RemoveFiles(filePaths []string) error {
+	var errors []string
+	for _, filePath := range filePaths {
+		if err := os.Remove(filePath); err != nil {
+			errors = append(errors, err.Error())
+		}
+	}
+	if len(errors) > 0 {
+		return fmt.Errorf("删除部分文件失败: %s", strings.Join(errors, "; "))
 	}
 	return nil
 }
 
-// RemoveDir 删除指定路径的空目录
-// 参数: dirPath - 目录路径
+// RemoveDirs 删除多个目录
+// 参数: dirPaths - 目录路径的数组
 // 返回值: 成功返回 nil，错误时返回 error
-func RemoveDir(dirPath string) error {
-	err := os.Remove(dirPath)
-	if err != nil {
-		return fmt.Errorf("删除目录失败: %w", err)
+func RemoveDirs(dirPaths []string) error {
+	var errors []string
+
+	// 遍历每个目录路径并尝试删除
+	for _, dirPath := range dirPaths {
+		err := os.Remove(dirPath)
+		if err != nil {
+			// 记录错误，但继续删除其他目录
+			errors = append(errors, fmt.Sprintf("删除目录 %s 失败: %v", dirPath, err))
+		}
+	}
+
+	// 如果有错误，返回所有错误信息
+	if len(errors) > 0 {
+		return fmt.Errorf("删除部分目录失败: %s", strings.Join(errors, "; "))
 	}
 	return nil
+}
+
+// FileHash 计算文件的 SHA-256 哈希值
+func FileHash(file io.Reader) (string, error) {
+	// 使用 SHA-256 计算哈希值
+	hash := sha256.New()
+
+	// 创建一个缓冲读取器，减少系统调用次数
+	bufReader := bufio.NewReader(file)
+
+	// 使用更大的缓冲区进行读取，例如 128KB 256KB
+	buffer := make([]byte, 128*1024) // 缓冲区
+	for {
+		n, err := bufReader.Read(buffer)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+
+		// 更新哈希值
+		hash.Write(buffer[:n])
+	}
+
+	// 返回哈希值的十六进制表示
+	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+// SafeFileName 处理文件名，转义掉 URL 中需要转义的字符
+func SafeFileName(fileName string) string {
+	// 获取文件扩展名
+	ext := filepath.Ext(fileName)
+
+	// 获取文件名（去除扩展名）
+	baseName := fileName[:len(fileName)-len(ext)]
+
+	// 转义文件名（去除文件扩展名部分）
+	safeBaseName := url.QueryEscape(baseName)
+
+	// 返回转义后的文件名和扩展名
+	return fmt.Sprintf("%s%s", safeBaseName, ext)
 }
